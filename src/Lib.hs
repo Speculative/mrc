@@ -2,12 +2,9 @@ module Lib
   ( someFunc
   ) where
 
-import           Data.Set                       ( Set
-                                                , delete
-                                                , empty
-                                                , insert
-                                                , member
-                                                )
+import qualified Data.List                     as List
+import qualified Data.Set                      as Set
+import           Debug.Trace                    ( trace )
 
 someFunc :: IO ()
 someFunc = putStrLn "someFunc"
@@ -19,23 +16,32 @@ class Policy s where
 newtype LRU = LRUList [Int]
 
 instance Policy LRU where
-  update lruList id = lruList
-  evict lruList id = (0, lruList)
+  update (LRUList lruList) id = LRUList $ id : List.delete id lruList
+  evict (LRUList lruList) id = (last lruList, LRUList $ id : init lruList)
 
 simulate :: Policy p => [Int] -> p -> Int -> Double
 simulate workload policy size =
-  fromIntegral (tickSimulate workload policy (empty, size) 0)
+  fromIntegral (tickSimulate workload policy (Set.empty, size) 0)
     / fromIntegral (length workload)
  where
   tickSimulate (nextTouch : restOfWorkload) policy cache@(cacheContents, cacheSize) misses
-    = if member nextTouch cacheContents then cacheHit else cacheMiss
+    | Set.member nextTouch cacheContents
+    = trace ("Hit" ++ show nextTouch) cacheHit
+    | length cacheContents < cacheSize
+    = trace ("Add" ++ show nextTouch) cacheAdd
+    | otherwise
+    = trace ("Miss" ++ show nextTouch) cacheMiss
    where
     cacheHit =
       tickSimulate restOfWorkload (update policy nextTouch) cache misses
+    cacheAdd = tickSimulate restOfWorkload
+                            (update policy nextTouch)
+                            (Set.insert nextTouch cacheContents, cacheSize)
+                            misses
     cacheMiss = tickSimulate restOfWorkload
                              policy'
                              (cacheContents', cacheSize)
                              (misses + 1)
     (evicted, policy') = evict policy nextTouch
-    cacheContents'     = insert nextTouch (delete evicted cacheContents)
+    cacheContents'     = Set.insert nextTouch (Set.delete evicted cacheContents)
   tickSimulate [] _ _ misses = misses
