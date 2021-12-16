@@ -33,6 +33,7 @@ library
   build-depends:
       base >=4.7 && <5
     , containers
+    , heap
   default-language: Haskell2010
 
 executable mrc-exe
@@ -45,6 +46,7 @@ executable mrc-exe
   build-depends:
       base >=4.7 && <5
     , containers
+    , heap
     , mrc
   default-language: Haskell2010
 
@@ -59,5 +61,6 @@ test-suite mrc-test
   build-depends:
       base >=4.7 && <5
     , containers
+    , heap
     , mrc
   default-language: Haskell2010

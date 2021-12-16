@@ -4,6 +4,7 @@ module Lib
 
 import qualified Data.List                     as List
 import qualified Data.Set                      as Set
+import qualified Data.Heap                     as Heap
 import           Debug.Trace                    ( trace )
 
 someFunc :: IO ()
@@ -14,10 +15,48 @@ class Policy s where
     evict :: s -> Int -> (Int, s)
 
 newtype LRU = LRUList [Int]
+newtype FIFO = FIFOList [Int]
+newtype LFU = LFUHeap (Heap.MinPrioHeap Int Int)
+newtype DLFU = DLFUHeap (Heap.MinPrioHeap Float (Int, Int, Int)) -- Format: (count (lastTime, totalTime, id))
 
 instance Policy LRU where
   update (LRUList lruList) id = LRUList $ id : List.delete id lruList
   evict (LRUList lruList) id = (last lruList, LRUList $ id : init lruList)
+
+instance Policy FIFO where
+  update (FIFOList fifoList) id 
+    | List.elem id fifoList = FIFOList fifoList
+    | otherwise = FIFOList $ id : fifoList
+  evict (FIFOList fifoList) id = (last fifoList, FIFOList $ id : init fifoList)
+
+instance Policy LFU where
+  update (LFUHeap lfuHeap) id
+    | length idList == 1 = LFUHeap $ Heap.insert (p+1, id) updatedHeap
+    | otherwise = LFUHeap $ Heap.insert (1, id) updatedHeap
+      where 
+        heapList = Heap.toList lfuHeap
+        (idList, otherList) = List.partition (\(_, val) -> val == id) heapList
+        [(p, _)] = idList
+        updatedHeap = Heap.fromList otherList
+  
+  evict (LFUHeap lfuHeap) id = (evicted, LFUHeap $ Heap.insert (1, id) $ Heap.drop 1 lfuHeap)
+    where [(_, evicted)] = Heap.take 1 lfuHeap
+
+instance Policy DLFU where 
+  update (DLFUHeap dlfuHeap) id
+    | length idList == 1 = DLFUHeap $ Heap.insert (count, (totalT, totalT, id)) updatedHeap
+    | otherwise = DLFUHeap $ Heap.insert (1.0, (1, 1, id)) dlfuHeap
+      where 
+        const = 1.0 / ( 0.0002 * ( log 2 ) )
+        hList = Heap.toList dlfuHeap
+        heapList = [ (c, (l, t+1, v)) | (c, (l, t, v)) <- hList ]
+        (idList, otherList) = List.partition (\(_, (_, _, val)) -> val == id) heapList
+        [(p, (lastT, totalT, _))] = idList
+        count = p * const / (const + fromIntegral (totalT - lastT))
+        updatedHeap = Heap.fromList otherList
+  
+  evict (DLFUHeap dlfuHeap) id = (evicted, DLFUHeap $ Heap.insert (1.0, (1, 1, id)) $ Heap.drop 1 dlfuHeap)
+    where [(_, (_, _, evicted))] = Heap.take 1 dlfuHeap
 
 simulate :: Policy p => [Int] -> p -> Int -> Double
 simulate workload policy size =
@@ -37,7 +76,7 @@ simulate workload policy size =
     cacheAdd = tickSimulate restOfWorkload
                             (update policy nextTouch)
                             (Set.insert nextTouch cacheContents, cacheSize)
-                            misses
+                            (misses + 1)
     cacheMiss = tickSimulate restOfWorkload
                              policy'
                              (cacheContents', cacheSize)
