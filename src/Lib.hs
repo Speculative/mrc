@@ -1,14 +1,53 @@
 module Lib
-  ( someFunc
+  ( simulate
   ) where
 
+import           Control.Monad                  ( guard
+                                                , join
+                                                )
 import qualified Data.List                     as List
+import           Data.List                      ( group )
 import qualified Data.Set                      as Set
 import qualified Data.Heap                     as Heap
+import           Data.Sort                      ( sort )
 import           Debug.Trace                    ( trace )
+import           System.Random.SplitMix         ( nextWord64 )
+import           System.Random.SplitMix.Distributions
+                                                ( gamma
+                                                , sample
+                                                , samples
+                                                , uniformR
+                                                , withGen
+                                                , zipf
+                                                )
 
-someFunc :: IO ()
-someFunc = putStrLn "someFunc"
+clamp (min, max) v | v < min   = min
+                   | v > max   = max
+                   | otherwise = v
+
+cycleWorkload range length = take length $ cycle [1 .. range]
+
+uniformWorkload range length gen =
+  map round $ samples length (fst $ nextWord64 gen) (uniformR 1 range)
+
+zipfWorkload _     _     0      _   = []
+zipfWorkload alpha range length gen = fst nextValue
+  : zipfWorkload alpha range (length - 1) (snd nextValue)
+ where
+  nextValue = genNextValue gen
+  genNextValue gen' = if fst candidate <= range
+    then candidate
+    else genNextValue (snd nextSeed)
+   where
+    candidate = (sample (fst nextSeed) (zipf alpha), snd nextSeed)
+    nextSeed  = nextWord64 gen'
+
+-- histogram $ zipfWorkload 1.5 1000 1000 (mkSMGen 12)
+
+histogram l = mapM (putStrLn . encoded) runs
+ where
+  runs = (group . sort) l
+  encoded r = replicate (length r) '*'
 
 class Policy s where
     update :: s -> Int -> s
