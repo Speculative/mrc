@@ -1,6 +1,11 @@
 module Main where
 
-import Lib
+import           Lib
+import           Workloads                      ( arcTraceWorkload
+                                                , arcTraces
+                                                )
 
 main :: IO ()
-main = someFunc
+main = do
+  workloads <- mapM arcTraceWorkload arcTraces
+  print $ map length workloads

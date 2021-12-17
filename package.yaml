@@ -26,15 +26,21 @@ dependencies:
   - splitmix-distributions
   - splitmix
   - sort
+  - zlib
+  - bytestring
+  - utf8-string
 
 library:
   source-dirs: src
+  ghc-options:
+    - -Wall
 
 executables:
   mrc-exe:
     main: Main.hs
     source-dirs: app
     ghc-options:
+      - -O2
       - -threaded
       - -rtsopts
       - -with-rtsopts=-N
