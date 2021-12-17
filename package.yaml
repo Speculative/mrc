@@ -26,6 +26,8 @@ dependencies:
   - splitmix-distributions
   - splitmix
   - sort
+  - zlib
+  - bytestring
 
 library:
   source-dirs: src
