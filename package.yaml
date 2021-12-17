@@ -29,6 +29,7 @@ dependencies:
   - zlib
   - bytestring
   - utf8-string
+  - parallel
 
 library:
   source-dirs: src

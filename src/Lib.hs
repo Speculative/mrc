@@ -5,6 +5,8 @@ module Lib
 import qualified Data.Heap                     as Heap
 import qualified Data.List                     as List
 import qualified Data.Set                      as Set
+import qualified Data.Heap                     as Heap
+import qualified Control.Parallel.Strategies   as Strategies
 import           Debug.Trace                    ( trace )
 
 class Policy s where
@@ -84,3 +86,30 @@ simulate workload policy size =
     (evicted, policy') = evict policy nextTouch
     cacheContents'     = Set.insert nextTouch (Set.delete evicted cacheContents)
   tickSimulate [] _ _ misses = misses
+
+simulatePoint :: Policy p => Int -> p -> (Set.Set Int, Int) -> Int -> (p, Set.Set Int, Int)
+simulatePoint nextTouch policy cache@(cacheContents, cacheSize) misses
+    | Set.member nextTouch cacheContents = cacheHit
+    | length cacheContents < cacheSize = cacheAdd
+    | otherwise = cacheMiss
+   where
+    cacheHit = ((update policy nextTouch), cacheContents, misses)
+    cacheAdd = ((update policy nextTouch), (Set.insert nextTouch cacheContents), misses + 1)
+    cacheMiss = (policy', cacheContents', misses + 1)
+    (evicted, policy') = evict policy nextTouch
+    cacheContents' = Set.insert nextTouch (Set.delete evicted cacheContents)
+
+simulateGraph :: Policy p => [Int] -> [(p, Set.Set Int, Int)] -> Int -> [Int]
+simulateGraph (w:workload) policiesData size 
+  | workload == [] = misses
+  | otherwise = simulateGraph workload pData size
+  where
+    pData = Strategies.parMap Strategies.rpar (\(p, cContents, m) -> simulatePoint w p (cContents, size) m) policiesData
+    misses = [m | (_, _, m) <- pData]
+
+simulateGraphs :: Policy p => [[Int]] -> [p] -> [Int] -> [[[Double]]]
+simulateGraphs workloads policies sizes = Strategies.parMap Strategies.rpar (\s -> simulateSizeGraph s) sizes
+  where 
+    simulateSizeGraph s = Strategies.parMap Strategies.rpar (\w -> (map (\pt -> fromIntegral pt / fromIntegral s) (simulateGraph w policiesData s))) workloads
+    policiesData = [(p,  Set.empty, 0) | p <- policies]
+
