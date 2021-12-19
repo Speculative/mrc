@@ -37,12 +37,12 @@ library
     , bytestring
     , containers
     , heap
+    , parallel
     , sort
     , splitmix
     , splitmix-distributions
     , utf8-string
     , zlib
-    , parallel
   default-language: Haskell2010
 
 executable mrc-exe
@@ -58,12 +58,12 @@ executable mrc-exe
     , containers
     , heap
     , mrc
+    , parallel
     , sort
     , splitmix
     , splitmix-distributions
     , utf8-string
     , zlib
-    , parallel
   default-language: Haskell2010
 
 test-suite mrc-test
@@ -80,10 +80,10 @@ test-suite mrc-test
     , containers
     , heap
     , mrc
+    , parallel
     , sort
     , splitmix
     , splitmix-distributions
     , utf8-string
     , zlib
-    , parallel
   default-language: Haskell2010
