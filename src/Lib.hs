@@ -1,13 +1,14 @@
 {-# LANGUAGE GADTs #-}
 
 module Lib
-  ( simulate, simulateGraphs
+  ( simulate
+  , simulateGraphs
   ) where
 
+import qualified Control.Parallel.Strategies   as Strategies
 import qualified Data.Heap                     as Heap
 import qualified Data.List                     as List
 import qualified Data.Set                      as Set
-import qualified Control.Parallel.Strategies   as Strategies
 import           Debug.Trace                    ( trace )
 
 class Policy s where
@@ -21,19 +22,15 @@ newtype DLFU = DLFUHeap (Heap.MinPrioHeap Float (Int, Int, Int)) -- Format: (cou
 data Wrapper = LRU LRU | FIFO FIFO | LFU LFU | DLFU DLFU
 
 instance Policy Wrapper where
-  update (LRU l) wid = LRU $ update l wid
+  update (LRU  l) wid = LRU $ update l wid
   update (FIFO l) wid = FIFO $ update l wid
-  update (LFU l) wid = LFU $ update l wid
+  update (LFU  l) wid = LFU $ update l wid
   update (DLFU l) wid = DLFU $ update l wid
 
-  evict (LRU l) wid = (e, LRU p)
-    where (e, p) = evict l wid
-  evict (FIFO l) wid = (e, FIFO p)
-    where (e, p) = evict l wid
-  evict (LFU l) wid = (e, LFU p)
-    where (e, p) = evict l wid
-  evict (DLFU l) wid = (e, DLFU p)
-    where (e, p) = evict l wid
+  evict (LRU  l) wid = (e, LRU p) where (e, p) = evict l wid
+  evict (FIFO l) wid = (e, FIFO p) where (e, p) = evict l wid
+  evict (LFU  l) wid = (e, LFU p) where (e, p) = evict l wid
+  evict (DLFU l) wid = (e, DLFU p) where (e, p) = evict l wid
 
 instance Policy LRU where
   update (LRUList lruList) wid = LRUList $ wid : List.delete wid lruList
@@ -41,8 +38,9 @@ instance Policy LRU where
 
 instance Policy FIFO where
   update (FIFOList fifoList) wid | wid `elem` fifoList = FIFOList fifoList
-                                | otherwise = FIFOList $ wid : fifoList
-  evict (FIFOList fifoList) wid = (last fifoList, FIFOList $ wid : init fifoList)
+                                 | otherwise = FIFOList $ wid : fifoList
+  evict (FIFOList fifoList) wid =
+    (last fifoList, FIFOList $ wid : init fifoList)
 
 instance Policy LFU where
   update (LFUHeap lfuHeap) wid
@@ -104,29 +102,41 @@ simulate workload policyStart size =
     cacheContents'     = Set.insert nextTouch (Set.delete evicted cacheContents)
   tickSimulate [] _ _ misses = misses
 
-simulatePoint :: Int -> Wrapper -> (Set.Set Int, Int) -> Int -> (Wrapper, Set.Set Int, Int)
+simulatePoint
+  :: Int -> Wrapper -> (Set.Set Int, Int) -> Int -> (Wrapper, Set.Set Int, Int)
 simulatePoint nextTouch policy (cacheContents, cacheSize) misses
-    | Set.member nextTouch cacheContents = cacheHit
-    | length cacheContents < cacheSize = cacheAdd
-    | otherwise = cacheMiss
-   where
-    cacheHit = (update policy nextTouch, cacheContents, misses)
-    cacheAdd = (update policy nextTouch, Set.insert nextTouch cacheContents, misses + 1)
-    cacheMiss = (policy', cacheContents', misses + 1)
-    (evicted, policy') = evict policy nextTouch
-    cacheContents' = Set.insert nextTouch (Set.delete evicted cacheContents)
+  | Set.member nextTouch cacheContents = cacheHit
+  | length cacheContents < cacheSize   = cacheAdd
+  | otherwise                          = cacheMiss
+ where
+  cacheHit = (update policy nextTouch, cacheContents, misses)
+  cacheAdd =
+    (update policy nextTouch, Set.insert nextTouch cacheContents, misses + 1)
+  cacheMiss          = (policy', cacheContents', misses + 1)
+  (evicted, policy') = evict policy nextTouch
+  cacheContents'     = Set.insert nextTouch (Set.delete evicted cacheContents)
 
 simulateGraph :: [Int] -> [(Wrapper, Set.Set Int, Int)] -> Int -> [Int]
-simulateGraph [] policiesData _ = [0 | _ <- policiesData]
-simulateGraph (w:workload) policiesData size
+simulateGraph [] policiesData _ = [ 0 | _ <- policiesData ]
+simulateGraph (w : workload) policiesData size
   | null workload = misses
-  | otherwise = simulateGraph workload pData size
-  where
-    pData = Strategies.parMap Strategies.rpar (\(p, cContents, m) -> simulatePoint w p (cContents, size) m) policiesData
-    misses = [m | (_, _, m) <- pData]
+  | otherwise     = simulateGraph workload pData size
+ where
+  pData = Strategies.parMap
+    Strategies.rpar
+    (\(p, cContents, m) -> simulatePoint w p (cContents, size) m)
+    policiesData
+  misses = [ m | (_, _, m) <- pData ]
 
 simulateGraphs :: [[Int]] -> [Wrapper] -> Int -> [[Double]]
-simulateGraphs workloads policies size = Strategies.parMap Strategies.rpar simulateSizeGraph workloads
-  where
-    simulateSizeGraph w = List.concat $ Strategies.parMap Strategies.rpar (map (\pt -> fromIntegral pt / fromIntegral (length w)) . simulateGraph w policiesData) [1..size]
-    policiesData = [(p,  Set.empty, 0) | p <- policies]
+simulateGraphs workloads policies size = Strategies.parMap Strategies.rpar
+                                                           simulateSizeGraph
+                                                           workloads
+ where
+  simulateSizeGraph w = List.concat $ Strategies.parMap
+    Strategies.rpar
+    ( map (\pt -> fromIntegral pt / fromIntegral (length w))
+    . simulateGraph w policiesData
+    )
+    [1 .. size]
+  policiesData = [ (p, Set.empty, 0) | p <- policies ]
