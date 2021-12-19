@@ -57,7 +57,6 @@ arcTraceWorkload traceFile = do
   traceContent <- fmap (UTF8.toString . decompress)
                        (ByteString.readFile ("traces/arc/" ++ traceFile))
   return (concatMap traceAccesses $ lines traceContent)
-    -- (concatMap traceAccesses $ lines $ Text.unpack $ Encoding.decodeUtf8 $ ByteString.toChunks traceContent)
  where
   traceAccesses line = accessSequence $ words line
   accessSequence (base : count : _) = map (+ read base) [1 .. (read count)]
