@@ -125,10 +125,8 @@ simulateGraph (w:workload) policiesData size
     pData = Strategies.parMap Strategies.rpar (\(p, cContents, m) -> simulatePoint w p (cContents, size) m) policiesData
     misses = [m | (_, _, m) <- pData]
 
-simulateGraphs :: [[Int]] -> [Wrapper] -> [Int] -> [[[Double]]]
-simulateGraphs workloads policies = Strategies.parMap Strategies.rpar simulateSizeGraphs
+simulateGraphs :: [[Int]] -> [Wrapper] -> Int -> [[Double]]
+simulateGraphs workloads policies size = Strategies.parMap Strategies.rpar simulateSizeGraph workloads
   where
-    simulateSizeGraphs s = Strategies.parMap Strategies.rpar simulateSizeGraph workloads
-      where
-        simulateSizeGraph w = List.concat $ Strategies.parMap Strategies.rpar (map (\pt -> fromIntegral pt / fromIntegral (length w)) . simulateGraph w policiesData) [1..s]
+    simulateSizeGraph w = List.concat $ Strategies.parMap Strategies.rpar (map (\pt -> fromIntegral pt / fromIntegral (length w)) . simulateGraph w policiesData) [1..size]
     policiesData = [(p,  Set.empty, 0) | p <- policies]
