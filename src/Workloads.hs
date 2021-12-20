@@ -5,6 +5,7 @@ module Workloads
   , arcTraceWorkload
   , arcTraces
   , histogram
+  , arcTraceWorkload'
   ) where
 
 import           Codec.Compression.GZip         ( decompress )
@@ -25,9 +26,9 @@ import           System.Random.SplitMix.Distributions
 cycleWorkload :: (Num a, Enum a) => a -> Int -> [a]
 cycleWorkload keyRange numOps = take numOps $ cycle [1 .. keyRange]
 
-uniformWorkload :: Integral b => Double -> Int -> SMGen -> [b]
-uniformWorkload keyRange numOps gen =
-  map round $ samples numOps (fst $ nextWord64 gen) (uniformR 1 keyRange)
+uniformWorkload :: Integral b => Int -> Int -> SMGen -> [b]
+uniformWorkload keyRange numOps gen = map round
+  $ samples numOps (fst $ nextWord64 gen) (uniformR 1 (fromIntegral keyRange))
 
 zipfWorkload :: (Eq t, Num t, Integral a) => Double -> a -> t -> SMGen -> [a]
 zipfWorkload _     _        0      _   = []
@@ -57,6 +58,16 @@ arcTraceWorkload traceFile = do
   traceContent <- fmap (UTF8.toString . decompress)
                        (ByteString.readFile ("traces/arc/" ++ traceFile))
   return (concatMap traceAccesses $ lines traceContent)
+ where
+  traceAccesses line = accessSequence $ words line
+  accessSequence (base : count : _) = map (+ read base) [1 .. (read count)]
+  accessSequence _                  = []
+
+
+arcTraceWorkload' :: (Num b, Read b, Enum b) => [Char] -> IO [b]
+arcTraceWorkload' traceFile = do
+  contents <- readFile ("traces/arc/" ++ traceFile)
+  return (concatMap traceAccesses $ lines contents)
  where
   traceAccesses line = accessSequence $ words line
   accessSequence (base : count : _) = map (+ read base) [1 .. (read count)]

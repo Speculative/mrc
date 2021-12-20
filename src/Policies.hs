@@ -35,6 +35,12 @@ instance Policy Wrapper where
   evict (LFU  l) wid = (e, LFU p) where (e, p) = evict l wid
   evict (DLFU l) wid = (e, DLFU p) where (e, p) = evict l wid
 
+instance Show Wrapper where
+  show (LRU _) = "LRU"
+  show (FIFO _) = "FIFO"
+  show (LFU _) = "LFU"
+  show (DLFU _) = "DLFU"
+
 instance Policy LRU where
   update (LRUList lruList) wid = LRUList $ wid : List.delete wid lruList
   evict (LRUList lruList) wid = (last lruList, LRUList $ wid : init lruList)
