@@ -4,6 +4,7 @@ module Simulate
   ( simulate
   , simulateGraph
   , simulateGraphs
+  , simulateGraphsSerially
   ) where
 
 import qualified Control.Parallel.Strategies   as Strategies
@@ -58,3 +59,13 @@ simulateGraphs workloads policies sizes = Strategies.parMap
     (workloadName, show policy, simulateGraph workloadAccesses policy sizes)
   )
   [ (workload, policy) | workload <- workloads, policy <- policies ]
+
+simulateGraphsSerially
+  :: [(String, [Int])] -> [Wrapper] -> [Int] -> [(String, String, [Double])]
+simulateGraphsSerially workloads policies sizes =
+  [ (workloadName, show policy, simulateGraphSerially workloadAccesses policy)
+  | (workloadName, workloadAccesses) <- workloads
+  , policy                           <- policies
+  ]
+ where
+  simulateGraphSerially workload policy = map (simulate workload policy) sizes

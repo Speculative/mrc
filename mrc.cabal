@@ -41,6 +41,7 @@ library
     , heap
     , parallel
     , sort
+    , split
     , splitmix
     , splitmix-distributions
     , utf8-string
@@ -62,6 +63,7 @@ executable mrc-exe
     , mrc
     , parallel
     , sort
+    , split
     , splitmix
     , splitmix-distributions
     , utf8-string
@@ -84,6 +86,7 @@ test-suite mrc-test
     , mrc
     , parallel
     , sort
+    , split
     , splitmix
     , splitmix-distributions
     , utf8-string
